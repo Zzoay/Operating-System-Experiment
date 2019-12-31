@@ -20,7 +20,16 @@ class PCB:
         print("{:^6}|{:^6}|{:^6}|{:^6}|{:^6}|{:^6}".format(self.name, self.arr, self.ser, self.finish, self.round, self.weighted))
 
 
-def sort(tmp_pcb_lst, tmp_finish):
+def execute(p, tmp_finish=0):
+    p.finish = tmp_finish + p.ser
+    p.round = p.finish - p.arr
+    p.weighted = p.round / p.ser
+    tmp_finish = p.finish
+    tmp_p = p
+    return tmp_finish, tmp_p
+
+
+def spf(tmp_pcb_lst, tmp_finish):
     # 通过两次的稳定排序，将先到达的，或同时到达而服务时间最短的，放在列表的首位
     idx_arr = sorted(range(len(tmp_pcb_lst)), key=lambda k: tmp_pcb_lst[k].ser)
     tmp_pcb_lst = [tmp_pcb_lst[i] for i in idx_arr]
@@ -52,22 +61,20 @@ def sort(tmp_pcb_lst, tmp_finish):
         idx_arr = sorted(range(len(p_que)), key=lambda k: p_que[k].ser)
         p_que = [p_que[i] for i in idx_arr]
 
-        p_que[0].finish = tmp_finish + p_que[0].ser
-        p_que[0].round = p_que[0].finish - p_que[0].arr
-        p_que[0].weighted = p_que[0].round / p_que[0].ser
+        tmp_finish, _ = execute(p_que[0], tmp_finish)
 
-        tmp_finish = p_que[0].finish
         # 任务完成后，若进程列表中已有到达的任务，则将其加入队列
         for p in tmp_pcb_lst:
             if p.arr <= tmp_finish:
                 p_que.append(p)
+                tmp_pcb_lst.remove(p)
 
         p_que.pop(0)    # 弹出第一个
 
     if len(tmp_pcb_lst) == 0:
         return
 
-    return sort(tmp_pcb_lst, tmp_finish)
+    return spf(tmp_pcb_lst, tmp_finish)
 
 
 if __name__ == '__main__':
@@ -85,6 +92,6 @@ if __name__ == '__main__':
         pcb_lst.append(pcb)
 
     tmp_finish = 0
-    sort(pcb_lst, tmp_finish)
+    spf(pcb_lst, tmp_finish)
     for p in pcb_lst:
         p.prt_pcb()
