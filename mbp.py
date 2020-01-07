@@ -11,16 +11,23 @@ import spf
 import dpa
 
 
-class PCB(spf.PCB): # 继承
+class PCB(spf.PCB):  # 继承
     def __init__(self):
         super().__init__()
         self.memory = 0
         self.tape_drive = 0
-        self.arr_memory = 0 # 到达内存时间
-        self.status = 0 # 0表示未完成，1表示完成，2表示资源已回收
-        self.running = 0 # 已经运行时间
-        self.remain = self.ser # 剩余需要运行时间
+        self.arr_memory = 0  # 到达内存时间
+        self.status = 0  # 0表示未完成，1表示完成，2表示资源已回收
+        self.running = 0  # 已经运行时间
+        self.remain = self.ser  # 剩余需要运行时间
 
+    def initial(self, name, arr, ser, memory_need, taped_need):
+        self.name = name    # 进程名
+        self.arr = arr   # 到达时间
+        self.ser = ser  # 剩余时间
+        self.remain = ser   # 服务时间
+        self.memory = memory_need   # 内存需要
+        self.tape_drive = taped_need    # 磁带机需要
 
     # 方法重写
     def prt_pcb(self):
@@ -53,15 +60,16 @@ class Resource(object):
 
 
 # 调度系统
-class ScheduleSystem():
-    def __init__(self, pcb_lst, resource, preempt):
+class ScheduleSystem(object):
+    def __init__(self, pcb_lst, resource, preempt, core_nums):
         self.preempt = preempt
-        self.core_nums = 1 # 核心数
+        self.run_nums = 0  # 当前运行的进程数
+        self.core_nums = core_nums   # 核心数
         self.input_well = pcb_lst.copy()    # 输入井
         self.reserve_lst = []   # 后备队列
         self.ready_lst = []     # 就绪队列
         self.running_lst = []   # 运行队列
-        self.time = 0# 时间
+        self.time = 0  # 时间
         self.resource = resource    # 资源
         self.done = False   # 是否完成
 
@@ -126,46 +134,40 @@ class ScheduleSystem():
         ready_p.remain = ready_p.ser - ready_p.running
 
     # 进程运行
-    def process_running(self, running_p):
-        running_p.running += 1
-        running_p.remain = running_p.ser - running_p.running
+    def process_running(self):
+        for running_p in self.running_lst:
+            running_p.running += 1
+            running_p.remain = running_p.ser - running_p.running
 
     # 进程完成，回收资源
-    def process_finished(self, running_p):
-        if running_p.remain == 0:
-            running_p.finish = self.time
-            running_p.round = running_p.finish - running_p.arr
-            running_p.weighted = running_p.round / running_p.ser
-            running_p.status = 1
-            print("--执行{}: {}个单位时间".format(running_p.name, running_p.running))
-            print("--完成{}".format(running_p.name))
-            self.prt_NowTime()
-            r.recycle(running_p)
-            self.ready_lst.remove(running_p)
-            self.running_lst.pop(0)
+    def process_finished(self):
+        for running_p in self.running_lst:
+            if running_p.remain == 0:
+                running_p.finish = self.time
+                running_p.round = running_p.finish - running_p.arr
+                running_p.weighted = running_p.round / running_p.ser
+                running_p.status = 1
+                print("\n--执行{}: {}个单位时间".format(running_p.name, running_p.running))
+                print("--完成{}".format(running_p.name))
+                self.prt_NowTime()
+                r.recycle(running_p)
+                self.ready_lst.remove(running_p)
+                self.running_lst.pop(0)
+                self.run_nums -= 1
 
     # 执行进程
     def execute_process(self):
-        run_nums = 0
         for ready_p in self.ready_lst:
-            if run_nums == self.core_nums:
-                break
-            if len(self.running_lst) < self.core_nums:
+            if self.run_nums < self.core_nums and ready_p not in self.running_lst:
                 self.prt_NowTime()
-                print("\n--执行{}".format(ready_p.name))
+                print("--执行{}".format(ready_p.name))
                 self.running_lst.append(ready_p)
+                self.run_nums += 1
             else:
                 for i, running_p in enumerate(self.running_lst):
-                    if self.preempt and (running_p is not ready_p):
+                    if self.preempt and (running_p not in self.ready_lst):
                         # 抢占
                         self.preemption(ready_p, running_p)
-                    else:
-                        self.process_running(running_p)
-
-                    run_nums += 1
-                    self.time += 1
-                    # 进程完成，回收资源
-                    self.process_finished(running_p)
 
     # 检查是否调度完成
     def check_done(self):
@@ -181,15 +183,24 @@ class ScheduleSystem():
 
             # 作业调度
             self.schedule_job(j_scd=j_scd)
-    
+
             # 进程调度
             self.schedule_process(p_scd=p_scd)
 
-            # 进程执行
+            # 进程执行，将进程加入运行队列
             self.execute_process()
 
+            # 进程运行
+            self.process_running()
+
+            self.time += 1
+
+            # 检查进程是否完成，并回收资源
+            self.process_finished()
+
             # 调度完成
-            if self.check_done(): break
+            if self.check_done():
+                break
 
 
 # 自定义异常
@@ -210,6 +221,7 @@ def parse_argument(params):
     args = parser.parse_args(sys.argv[1:])
     return args
 
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
@@ -219,6 +231,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 if __name__ == '__main__':
     print("--------------多道批处理系统两级调度--------------")
@@ -238,18 +251,13 @@ if __name__ == '__main__':
     num = len(name_lst)
     arr_lst = [0, 20, 30, 35, 40]
     ser_lst = [25, 30, 10, 20, 15]
-    memory_need = [15, 60, 50, 10, 30]
-    taped_need = [2, 1, 3, 2, 2]
+    memory_needs = [15, 60, 50, 10, 30]
+    taped_needs = [2, 1, 3, 2, 2]
     pcb_lst = []
 
     for i in range(num):
         pcb = PCB()
-        pcb.name = name_lst[i]
-        pcb.arr = arr_lst[i]
-        pcb.ser = ser_lst[i]
-        pcb.remain = ser_lst[i]
-        pcb.memory = memory_need[i]
-        pcb.tape_drive = taped_need[i]
+        pcb.initial(name_lst[i], arr_lst[i], ser_lst[i], memory_needs[i], taped_needs[i])
         pcb_lst.append(pcb)
 
     memory = [[100, "F", -1]]
@@ -260,11 +268,13 @@ if __name__ == '__main__':
     default_params = [
         ('--j_scd', str, 'fifo'),
         ('--p_scd', str, 'fifo'),
-        ('--preempt', str2bool, 'f')
+        ('--preempt', str2bool, 'f'),
+        ('--core_nums', int, 1),
     ]
     args = parse_argument(default_params)
 
-    s = ScheduleSystem(pcb_lst, r, preempt=args.preempt)
+    s = ScheduleSystem(pcb_lst, r, preempt=args.preempt, core_nums=args.core_nums)
+    print("是否可抢占：{}，核心数：{}".format(args.preempt, args.core_nums))
     s.run_schedule(j_scd=args.j_scd, p_scd=args.p_scd)
 
     print("--------------------------------------------")
