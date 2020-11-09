@@ -1,12 +1,16 @@
 # Operating-System-Experiment
-The experiment of operating system. 操作系统实验，Python实现.
+Operating system experiment, Python implementation.
 
 
+## Files
 
-## 文件说明
+- spf.py : SPF(Short Process First) schedule 
+- rps.py : Request Paging Storage management 
+- dpa.py : Dynamic Partition Allocation
+- ba.py : Banker's Algorithm
+- mbp.py : Two Level Scheduling in Multi-Batch Processing ScheduleSystem
 
-- spf.py : 短进程优先调度
-- rps.py : 请求分页存储管理
-- dpa.py : 动态分区分配
-- ba.py : 银行家算法
-- mbp.py : 多道批处理系统两级调度的模拟
+
+## Requirements
+- python
+- numpy
